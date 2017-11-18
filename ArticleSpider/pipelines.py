@@ -7,10 +7,13 @@
 import json
 import codecs
 
+from ArticleSpider.models.es_types import ArticleType
+
 from scrapy.pipelines.images import ImagesPipeline
 from scrapy.exporters import JsonItemExporter
 from twisted.enterprise import adbapi
 
+from w3lib.html import remove_tags
 import MySQLdb
 import MySQLdb.cursors
 
@@ -56,22 +59,6 @@ class ArticleImagePipeline(ImagesPipeline):
         return item
 
 
-class MysqlPipeline(object):
-    #采用同步机制写入mysql
-    def __init__(self):
-        self.conn = MySQLdb.connect('localhost','root','krzz1937','scrapyspider',charset='utf8',use_unicode=True)
-        self.cursor = self.conn.cursor()
-
-    def process_item(self, item, spider):
-        insert_sql = """
-            insert into jobbole_article(title, url, url_object_id, content, comment_nums, create_date, front_image_url, fav_nums, praise_nums, tags)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """
-        self.cursor.execute(insert_sql, (item["title"], item["url"], item["url_object_id"], item["content"], item["comment_nums"],
-                                item["create_date"], item["front_image_url"], item["fav_nums"], item["praise_nums"], item["tags"]))
-        self.conn.commit()
-
-
 class MysqlTwistedPipeline(object):
     def __init__(self, dbpool):
         self.dbpool = dbpool
@@ -106,18 +93,10 @@ class MysqlTwistedPipeline(object):
 
 class ElasticsearchPipeline(object):
     #将数据写入带es中
-
     def process_item(self, item, spider):
         #将item转化为es数据
         item.save_to_es()
         return item
-
-
-
-
-
-
-
 
 
 

@@ -11,6 +11,7 @@ from selenium import webdriver
 from scrapy.http import HtmlResponse
 from ArticleSpider.tools.crawl_xici_ip import GetIP
 
+
 class ArticlespiderSpiderMiddleware(object):
     # Not all methods need to be defined. If a method is not defined,
     # scrapy acts as if the spider middleware does not modify the

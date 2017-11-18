@@ -6,6 +6,7 @@
 # http://doc.scrapy.org/en/latest/topics/items.html
 
 import re
+import redis
 import datetime
 import scrapy
 from scrapy.loader import ItemLoader
@@ -17,6 +18,7 @@ from elasticsearch_dsl.connections import connections
 from w3lib.html import remove_tags
 
 es = connections.create_connection(ArticleType._doc_type.using)
+redis_cli = redis.StrictRedis()
 
 class ArticlespiderItem(scrapy.Item):
     # define the fields for your item here like:
@@ -108,6 +110,7 @@ class JobBoleArticleItem(scrapy.Item):
         article.suggest = gen_suggests(ArticleType._doc_type.index, ((article.title, 10),(article.tags, 7)))
 
         article.save()
+        redis_cli.incr("jobbole_count")
         return
 
     def get_insert_sql(self):
@@ -296,21 +299,98 @@ class LagouJobItemLoader(ItemLoader):
     default_output_processor = TakeFirst()
 
 
+def remove_strip(value):
+    return value.strip().replace("\r","").replace("\n","").replace(" ","")
 
 
+def min_salary(value):
+    try:
+        min_ = int(re.match("(\d+)-", value).group(1))
+    except Exception as e:
+        min_ = 0
+    return min_
 
 
+def max_salary(value):
+    try:
+        max_ = int(re.match(".*-(\d+)",value).group(1))
+    except Exception as e:
+        max_ = 0
+    return max_
 
 
+def work_years(value):
+    if "不限" in value:
+        return 0
+    try:
+        years = re.match("(\d+)-",value).group(1)
+    except Exception as e:
+        years = 99
+    return years
 
 
+def publish_time(value):
+    if re.match("000.*", value):
+            return datetime.datetime.now().date().strftime("%Y-%m-%d")
+    return value
 
 
+class ZhilianJobItemLoader(ItemLoader):
+    #智联自定义的Itemloader
+    default_output_processor = TakeFirst()
 
 
+class ZhilianJobItem(scrapy.Item):
+    title = scrapy.Field()
+    url = scrapy.Field()
+    url_object_id = scrapy.Field()
+    min_salary = scrapy.Field(
+        input_processor=MapCompose(min_salary)
+    )
+    max_salary = scrapy.Field(
+        input_processor=MapCompose(max_salary)
+    )
+    publish_time = scrapy.Field(
+        input_processor=MapCompose(remove_tags, publish_time)
+    )
+    job_city = scrapy.Field(
+        input_processor=MapCompose(remove_tags)
+    )
+    job_desc = scrapy.Field(
+        input_processor=MapCompose(remove_tags, remove_strip)
+    )
+    degree_need = scrapy.Field()
+    work_years = scrapy.Field(
+        input_processor=MapCompose(work_years)
+    )
+    comapany_name = scrapy.Field()
+    company_advan = scrapy.Field(
+        input_processor=MapCompose(remove_tags)
+    )
+    company_desc = scrapy.Field(
+        input_processor=MapCompose(remove_tags, remove_strip)
+    )
 
+    crawl_time = scrapy.Field()
+    def get_insert_sql(self):
 
+        insert_sql = """
+            insert into zhilian(title, url, url_object_id, min_salary, max_salary, publish_time, job_city, job_desc, degree_need,
+            work_years, company_name, company_advan, company_desc, crawl_time)
+             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,%s)
+             ON DUPLICATE KEY UPDATE min_salary=VALUES(min_salary), max_salary=VALUES(max_salary), publish_time=VALUES(publish_time),
+              work_years=VALUES(work_years), company_advan=VALUES(company_advan), publish_time=VALUES(publish_time),
+              job_desc=VALUES(job_desc), crawl_time=VALUES(crawl_time), title=VALUES(title)
+                
+        """
+        param = (
+            self["title"], self["url"], self["url_object_id"], self["min_salary"], self["max_salary"],
+            self["publish_time"],self["job_city"], self["job_desc"], self["degree_need"], self["work_years"],
+            self["comapany_name"], self["company_advan"],self["company_desc"],
+            self["crawl_time"].strftime(SQL_DATETIME_FORMAT)
+        )
 
+        return insert_sql, param
 
 
 

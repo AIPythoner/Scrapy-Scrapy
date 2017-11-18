@@ -13,6 +13,7 @@ from scrapy import signals
 from ArticleSpider.items import LagouJobItemLoader, LagouJobItem
 from ArticleSpider.utils.common import get_md5
 
+
 class LagouSpider(CrawlSpider):
     name = 'lagou'
     allowed_domains = ['www.lagou.com']
@@ -58,6 +59,7 @@ class LagouSpider(CrawlSpider):
 
     def parse_job(self, response):
         itemloader = LagouJobItemLoader(item=LagouJobItem(),response=response)
+
         itemloader.add_css("title", ".job-name::attr(title)")
         itemloader.add_value("url", response.url)
         itemloader.add_value("url_object_id", get_md5(response.url))
